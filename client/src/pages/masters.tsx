@@ -26,16 +26,18 @@ import { Link, useLocation } from "wouter";
 
 export default function MastersPage() {
   const [location, navigate] = useLocation();
-  const searchParams = new URLSearchParams(location.split("?")[1]);
+  const searchParams = new URLSearchParams(window.location.search);
   const defaultTab = searchParams.get("tab") || "service";
   const currentView = searchParams.get("view") || "";
   const [activeTab, setActiveTab] = useState(defaultTab);
 
   useEffect(() => {
-    if (defaultTab !== activeTab) {
-      setActiveTab(defaultTab);
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab") || "service";
+    if (tab !== activeTab) {
+      setActiveTab(tab);
     }
-  }, [defaultTab]);
+  }, [location]);
   const { toast } = useToast();
   const [isAddServiceOpen, setIsAddServiceOpen] = useState(false);
   const [editingService, setEditingService] = useState<ServiceMaster | null>(null);

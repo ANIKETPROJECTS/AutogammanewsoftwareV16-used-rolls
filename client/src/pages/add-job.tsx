@@ -779,6 +779,7 @@ export default function AddJobPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/job-cards"] });
       queryClient.invalidateQueries({ queryKey: ["/api/job-cards", jobId] });
       queryClient.invalidateQueries({ queryKey: [api.masters.accessories.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.masters.ppf.list.path] });
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       toast({
         title: jobId ? "Job Card Updated" : "Job Card Created",

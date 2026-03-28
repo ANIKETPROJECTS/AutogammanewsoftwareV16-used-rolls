@@ -48,6 +48,8 @@ export default function JobDetailsPage() {
     try {
       await apiRequest("PATCH", `/api/job-cards/${id}`, { status });
       queryClient.invalidateQueries({ queryKey: ["/api/job-cards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/masters/ppf"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       toast({
         title: "Status Updated",
         description: `Job card has been marked as ${status}.`,
@@ -67,6 +69,8 @@ export default function JobDetailsPage() {
     try {
       await apiRequest("DELETE", `/api/job-cards/${id}`);
       queryClient.invalidateQueries({ queryKey: ["/api/job-cards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/masters/ppf"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       toast({
         title: "Job Card Deleted",
         description: "The job card has been successfully removed.",

@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Wrench, Shield, Package, Car, X, Edit2, LayoutGrid } from "lucide-react";
+import { Plus, Trash2, Wrench, Shield, Package, Car, X, Edit2, LayoutGrid, ChevronDown, ChevronUp, Archive } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@shared/routes";
@@ -47,6 +47,17 @@ export default function MastersPage() {
   const [newVehicleTypeName, setNewVehicleTypeName] = useState("");
   const [newCategoryName, setNewCategoryName] = useState("");
   const [accessorySearchQuery, setAccessorySearchQuery] = useState("");
+  const [expandedRolls, setExpandedRolls] = useState<Set<string>>(new Set());
+  const [isUsedRollsOpen, setIsUsedRollsOpen] = useState(false);
+
+  const toggleRollExpand = (ppfId: string) => {
+    setExpandedRolls(prev => {
+      const next = new Set(prev);
+      if (next.has(ppfId)) next.delete(ppfId);
+      else next.add(ppfId);
+      return next;
+    });
+  };
 
   const { data: services = [] } = useQuery<ServiceMaster[]>({
     queryKey: [api.masters.services.list.path],
@@ -280,6 +291,44 @@ export default function MastersPage() {
                   </div>
                 </DialogContent>
               </Dialog>
+
+              <Dialog open={isUsedRollsOpen} onOpenChange={setIsUsedRollsOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="flex items-center gap-2" data-testid="button-used-rolls">
+                    <Archive className="h-4 w-4" />
+                    Used Rolls
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Used Rolls (≤ 10 sqft)</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-2">
+                    {ppfs.every(p => !(p.rolls || []).some(r => r.stock <= 10)) ? (
+                      <p className="text-sm text-muted-foreground text-center py-6">No used rolls yet. Rolls with 10 sqft or less will appear here.</p>
+                    ) : (
+                      ppfs.map(ppf => {
+                        const usedRolls = (ppf.rolls || []).filter(r => r.stock <= 10);
+                        if (usedRolls.length === 0) return null;
+                        return (
+                          <div key={ppf.id}>
+                            <div className="text-xs font-bold uppercase text-primary mb-2">{ppf.name}</div>
+                            <div className="space-y-1">
+                              {usedRolls.map((roll, i) => (
+                                <div key={i} className="flex justify-between items-center text-xs bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 p-2 px-3 rounded-md">
+                                  <span className="font-semibold">{roll.name || `Roll #${i+1}`}</span>
+                                  <span className={`font-bold ${roll.stock === 0 ? "text-destructive" : "text-orange-600 dark:text-orange-400"}`}>{roll.stock} sqft</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+
               <Dialog open={isAddPPFOpen} onOpenChange={setIsAddPPFOpen}>
                 <DialogTrigger asChild>
                   <Button className="flex items-center gap-2">
@@ -297,7 +346,10 @@ export default function MastersPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {ppfs.map((ppf) => (
+              {ppfs.map((ppf) => {
+                const activeRolls = (ppf.rolls || []).filter(r => r.stock > 10);
+                const isExpanded = expandedRolls.has(ppf.id!);
+                return (
                 <Card key={ppf.id}>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-lg">{ppf.name}</CardTitle>
@@ -328,23 +380,32 @@ export default function MastersPage() {
                         </div>
                       ))}
                       
-                      {ppf.rolls && ppf.rolls.length > 0 && (
+                      {activeRolls.length > 0 && (
                         <div className="pt-2 border-t mt-2">
-                          <div className="text-xs font-bold uppercase mb-2">Roll Inventory ({ppf.rolls.length})</div>
-                          <div className="space-y-1">
-                            {ppf.rolls.map((roll, i) => (
-                              <div key={i} className="flex justify-between items-center text-[10px] bg-muted/50 p-1 px-2 rounded">
-                                <span className="font-bold">{roll.name || `Roll #${i+1}`}</span>
-                                <span>{roll.stock} sqft</span>
-                              </div>
-                            ))}
-                          </div>
+                          <button
+                            className="w-full flex items-center justify-between text-xs font-bold uppercase mb-1 hover:text-primary transition-colors"
+                            onClick={() => toggleRollExpand(ppf.id!)}
+                          >
+                            <span>Roll Inventory ({activeRolls.length})</span>
+                            {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                          </button>
+                          {isExpanded && (
+                            <div className="space-y-1 mt-2">
+                              {activeRolls.map((roll, i) => (
+                                <div key={i} className="flex justify-between items-center text-[10px] bg-muted/50 p-1 px-2 rounded">
+                                  <span className="font-bold">{roll.name || `Roll #${i+1}`}</span>
+                                  <span>{roll.stock} sqft</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
 
             <Dialog open={!!editingPPF} onOpenChange={(open) => !open && setEditingPPF(null)}>

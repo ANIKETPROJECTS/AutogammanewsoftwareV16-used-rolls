@@ -4,11 +4,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Wrench, Shield, Package, Car, X, Edit2, LayoutGrid, ChevronDown, ChevronUp, Archive, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, Wrench, Shield, Package, Car, X, Edit2, LayoutGrid, ChevronDown, ChevronUp, Archive, ArrowLeft, History } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@shared/routes";
-import { ServiceMaster, VehicleType, PPFMaster, AccessoryMaster, AccessoryCategory } from "@shared/schema";
+import { ServiceMaster, VehicleType, PPFMaster, AccessoryMaster, AccessoryCategory, JobCard } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -30,6 +30,7 @@ export default function MastersPage() {
   const defaultTab = searchParams.get("tab") || "service";
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [showUsedRolls, setShowUsedRolls] = useState(false);
+  const [showRollHistory, setShowRollHistory] = useState(false);
 
   useEffect(() => {
     if (defaultTab !== activeTab) {
@@ -51,8 +52,9 @@ export default function MastersPage() {
   const [accessorySearchQuery, setAccessorySearchQuery] = useState("");
   const [expandedRolls, setExpandedRolls] = useState<Set<string>>(new Set());
 
-  const goToUsedRolls = () => setShowUsedRolls(true);
-  const goBackToPPF = () => setShowUsedRolls(false);
+  const goToUsedRolls = () => { setShowUsedRolls(true); setShowRollHistory(false); };
+  const goToRollHistory = () => { setShowRollHistory(true); setShowUsedRolls(false); };
+  const goBackToPPF = () => { setShowUsedRolls(false); setShowRollHistory(false); };
 
   const toggleRollExpand = (ppfId: string) => {
     setExpandedRolls(prev => {
@@ -151,7 +153,7 @@ export default function MastersPage() {
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setShowUsedRolls(false); }} className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setShowUsedRolls(false); setShowRollHistory(false); }} className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-8">
             <TabsTrigger value="service" className="flex items-center gap-2">
               <Wrench className="h-4 w-4" />
@@ -264,7 +266,9 @@ export default function MastersPage() {
           </TabsContent>
 
           <TabsContent value="ppf" className="space-y-6">
-            {showUsedRolls ? (
+            {showRollHistory ? (
+              <RollHistoryView onBack={goBackToPPF} />
+            ) : showUsedRolls ? (
               <div className="space-y-6">
                 <div className="flex items-center gap-3">
                   <Button variant="outline" size="sm" onClick={goBackToPPF} className="flex items-center gap-2">
@@ -316,6 +320,10 @@ export default function MastersPage() {
             ) : (
             <>
             <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={goToRollHistory} className="flex items-center gap-2">
+                <History className="h-4 w-4" />
+                Roll History
+              </Button>
               <Button variant="outline" onClick={goToUsedRolls} className="flex items-center gap-2">
                 <Archive className="h-4 w-4" />
                 Used Rolls
@@ -961,6 +969,182 @@ function AddAccessoryForm({
           {initialData ? "Update Accessory" : "Save Accessory"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function RollHistoryView({ onBack }: { onBack: () => void }) {
+  const { data: jobCards = [], isLoading } = useQuery<JobCard[]>({
+    queryKey: ["/api/job-cards"],
+  });
+
+  const [search, setSearch] = useState("");
+
+  type HistoryRow = {
+    date: string;
+    jobNo: string;
+    jobCardId: string;
+    customerName: string;
+    vehicle: string;
+    ppfName: string;
+    rollName: string;
+    sqftUsed: number;
+    price: number;
+    warranty: string;
+    technician: string;
+  };
+
+  const historyRows: HistoryRow[] = [];
+
+  for (const jc of jobCards) {
+    for (const ppf of jc.ppfs || []) {
+      const vehicle = [jc.make, jc.model, jc.licensePlate].filter(Boolean).join(" · ");
+      const basePpfName = ppf.name?.split("\n")[0] || "";
+
+      const rollsUsed: Array<{ rollName: string; rollUsed: number }> =
+        (ppf as any).rollsUsed?.length > 0
+          ? (ppf as any).rollsUsed
+          : ppf.rollUsed
+          ? [{ rollName: (ppf as any).rollName || "—", rollUsed: ppf.rollUsed }]
+          : [];
+
+      if (rollsUsed.length === 0 && ppf.rollUsed) {
+        rollsUsed.push({ rollName: (ppf as any).rollName || "—", rollUsed: ppf.rollUsed });
+      }
+
+      if (rollsUsed.length === 0) {
+        historyRows.push({
+          date: jc.date,
+          jobNo: jc.jobNo,
+          jobCardId: jc.id || "",
+          customerName: jc.customerName,
+          vehicle,
+          ppfName: basePpfName,
+          rollName: "—",
+          sqftUsed: 0,
+          price: ppf.price,
+          warranty: ppf.warranty || "—",
+          technician: ppf.technician || "—",
+        });
+      } else {
+        for (const r of rollsUsed) {
+          historyRows.push({
+            date: jc.date,
+            jobNo: jc.jobNo,
+            jobCardId: jc.id || "",
+            customerName: jc.customerName,
+            vehicle,
+            ppfName: basePpfName,
+            rollName: r.rollName || "—",
+            sqftUsed: r.rollUsed || 0,
+            price: ppf.price,
+            warranty: ppf.warranty || "—",
+            technician: ppf.technician || "—",
+          });
+        }
+      }
+    }
+  }
+
+  historyRows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const filtered = historyRows.filter(r => {
+    const q = search.toLowerCase();
+    return (
+      !q ||
+      r.jobNo.toLowerCase().includes(q) ||
+      r.customerName.toLowerCase().includes(q) ||
+      r.ppfName.toLowerCase().includes(q) ||
+      r.rollName.toLowerCase().includes(q) ||
+      r.vehicle.toLowerCase().includes(q)
+    );
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Button variant="outline" size="sm" onClick={onBack} className="flex items-center gap-2">
+          <ArrowLeft className="h-4 w-4" />
+          Back to PPF Master
+        </Button>
+        <div>
+          <h2 className="text-lg font-semibold">Roll Usage History</h2>
+          <p className="text-sm text-muted-foreground">Complete history of PPF rolls used across all job cards.</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Input
+          placeholder="Search by job no, customer, PPF name, roll..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-sm"
+        />
+        <span className="text-sm text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-14 rounded-lg bg-muted animate-pulse" />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
+          <History className="h-12 w-12 mb-4 opacity-30" />
+          <p className="text-base font-medium">No roll usage history yet</p>
+          <p className="text-sm mt-1">PPF roll usage from job cards will appear here.</p>
+        </div>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/60 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">Date</th>
+                  <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">Job No</th>
+                  <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">Customer</th>
+                  <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">Vehicle</th>
+                  <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">PPF</th>
+                  <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">Roll</th>
+                  <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-muted-foreground">Sqft Used</th>
+                  <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-muted-foreground">Amount</th>
+                  <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">Warranty</th>
+                  <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">Technician</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {filtered.map((row, i) => (
+                  <tr key={i} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+                      {new Date(row.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded font-semibold">{row.jobNo}</span>
+                    </td>
+                    <td className="px-4 py-3 font-medium">{row.customerName}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{row.vehicle}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-primary">{row.ppfName}</div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{row.rollName}</td>
+                    <td className="px-4 py-3 text-right">
+                      {row.sqftUsed > 0 ? (
+                        <span className="font-semibold">{row.sqftUsed} <span className="text-xs font-normal text-muted-foreground">sqft</span></span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-primary">₹{row.price.toLocaleString("en-IN")}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{row.warranty}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{row.technician}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

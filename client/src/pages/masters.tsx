@@ -51,6 +51,10 @@ export default function MastersPage() {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [accessorySearchQuery, setAccessorySearchQuery] = useState("");
   const [expandedRolls, setExpandedRolls] = useState<Set<string>>(new Set());
+  const [usedRollSearch, setUsedRollSearch] = useState("");
+  const [usedRollSortKey, setUsedRollSortKey] = useState<"name" | "ppf" | "stock">("stock");
+  const [usedRollSortDir, setUsedRollSortDir] = useState<"asc" | "desc">("asc");
+  const [usedRollFilterPPF, setUsedRollFilterPPF] = useState("all");
 
   const goToUsedRolls = () => { setShowUsedRolls(true); setShowRollHistory(false); };
   const goToRollHistory = () => { setShowRollHistory(true); setShowUsedRolls(false); };
@@ -269,7 +273,8 @@ export default function MastersPage() {
             {showRollHistory ? (
               <RollHistoryView onBack={goBackToPPF} />
             ) : showUsedRolls ? (
-              <div className="space-y-6">
+              <div className="space-y-5">
+                {/* Header */}
                 <div className="flex items-center gap-3">
                   <Button variant="outline" size="sm" onClick={goBackToPPF} className="flex items-center gap-2">
                     <ArrowLeft className="h-4 w-4" />
@@ -280,42 +285,159 @@ export default function MastersPage() {
                     <p className="text-sm text-muted-foreground">Rolls with 10 sqft or less remaining. These rolls are considered depleted and cannot be used for new jobs.</p>
                   </div>
                 </div>
-                {ppfs.every(p => !(p.rolls || []).some(r => r.stock <= 10)) ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
-                    <Archive className="h-12 w-12 mb-4 opacity-30" />
-                    <p className="text-base font-medium">No used rolls yet</p>
-                    <p className="text-sm mt-1">Rolls with 10 sqft or less will automatically appear here.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-8">
-                    {ppfs.map(ppf => {
-                      const usedRolls = (ppf.rolls || []).filter(r => r.stock <= 10);
-                      if (usedRolls.length === 0) return null;
-                      return (
-                        <div key={ppf.id}>
-                          <div className="flex items-center gap-2 mb-3">
-                            <Shield className="h-4 w-4 text-primary" />
-                            <span className="text-sm font-bold uppercase text-primary">{ppf.name}</span>
-                            <span className="text-xs text-muted-foreground">({usedRolls.length} roll{usedRolls.length !== 1 ? "s" : ""})</span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                            {usedRolls.map((roll, i) => (
-                              <div key={i} className="flex items-center justify-between bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg px-4 py-3">
-                                <div>
-                                  <div className="text-sm font-semibold">{roll.name || `Roll #${i + 1}`}</div>
-                                  <div className="text-xs text-muted-foreground mt-0.5">Remaining stock</div>
-                                </div>
-                                <div className={`text-lg font-bold ${roll.stock === 0 ? "text-destructive" : "text-orange-600 dark:text-orange-400"}`}>
-                                  {roll.stock} <span className="text-xs font-normal">sqft</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+
+                {(() => {
+                  // Flatten all used rolls across all PPF masters
+                  const allUsedRolls = ppfs.flatMap(ppf =>
+                    (ppf.rolls || [])
+                      .filter(r => r.stock <= 10)
+                      .map(r => ({ ...r, ppfName: ppf.name, ppfId: ppf.id }))
+                  );
+
+                  if (allUsedRolls.length === 0) {
+                    return (
+                      <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
+                        <Archive className="h-12 w-12 mb-4 opacity-30" />
+                        <p className="text-base font-medium">No used rolls yet</p>
+                        <p className="text-sm mt-1">Rolls with 10 sqft or less will automatically appear here.</p>
+                      </div>
+                    );
+                  }
+
+                  // Unique PPF names for filter dropdown
+                  const uniquePPFs = Array.from(new Set(allUsedRolls.map(r => r.ppfName)));
+
+                  // Apply search
+                  let filtered = allUsedRolls.filter(r => {
+                    const q = usedRollSearch.toLowerCase();
+                    return r.name.toLowerCase().includes(q) || r.ppfName.toLowerCase().includes(q);
+                  });
+
+                  // Apply PPF filter
+                  if (usedRollFilterPPF !== "all") {
+                    filtered = filtered.filter(r => r.ppfName === usedRollFilterPPF);
+                  }
+
+                  // Apply sort
+                  filtered = [...filtered].sort((a, b) => {
+                    let cmp = 0;
+                    if (usedRollSortKey === "name") cmp = a.name.localeCompare(b.name);
+                    else if (usedRollSortKey === "ppf") cmp = a.ppfName.localeCompare(b.ppfName);
+                    else if (usedRollSortKey === "stock") cmp = a.stock - b.stock;
+                    return usedRollSortDir === "asc" ? cmp : -cmp;
+                  });
+
+                  const toggleSort = (key: "name" | "ppf" | "stock") => {
+                    if (usedRollSortKey === key) {
+                      setUsedRollSortDir(d => d === "asc" ? "desc" : "asc");
+                    } else {
+                      setUsedRollSortKey(key);
+                      setUsedRollSortDir("asc");
+                    }
+                  };
+
+                  const SortIcon = ({ col }: { col: "name" | "ppf" | "stock" }) => {
+                    if (usedRollSortKey !== col) return <ArrowUpDown className="h-3.5 w-3.5 ml-1 opacity-40" />;
+                    return usedRollSortDir === "asc"
+                      ? <ArrowUp className="h-3.5 w-3.5 ml-1 text-primary" />
+                      : <ArrowDown className="h-3.5 w-3.5 ml-1 text-primary" />;
+                  };
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Search + Filter bar */}
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="relative flex-1">
+                          <Input
+                            placeholder="Search by roll name or PPF..."
+                            value={usedRollSearch}
+                            onChange={e => setUsedRollSearch(e.target.value)}
+                            className="pl-9"
+                          />
+                          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        <Select value={usedRollFilterPPF} onValueChange={setUsedRollFilterPPF}>
+                          <SelectTrigger className="w-full sm:w-48">
+                            <SelectValue placeholder="All PPFs" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All PPFs</SelectItem>
+                            {uniquePPFs.map(name => (
+                              <SelectItem key={name} value={name}>{name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {(usedRollSearch || usedRollFilterPPF !== "all") && (
+                          <Button variant="ghost" size="sm" onClick={() => { setUsedRollSearch(""); setUsedRollFilterPPF("all"); }} className="flex items-center gap-1 shrink-0">
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            Reset
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Record count */}
+                      <p className="text-sm text-muted-foreground">{filtered.length} roll{filtered.length !== 1 ? "s" : ""} found</p>
+
+                      {/* Table */}
+                      {filtered.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground border rounded-lg">
+                          <Archive className="h-8 w-8 mb-3 opacity-30" />
+                          <p className="text-sm font-medium">No rolls match your search</p>
+                          <p className="text-xs mt-1">Try adjusting your filters.</p>
+                        </div>
+                      ) : (
+                        <div className="border rounded-lg overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-muted/50 border-b">
+                              <tr>
+                                <th className="px-4 py-3 text-left font-medium">
+                                  <button onClick={() => toggleSort("name")} className="flex items-center text-xs uppercase tracking-wide font-semibold hover:text-primary transition-colors">
+                                    Roll Name <SortIcon col="name" />
+                                  </button>
+                                </th>
+                                <th className="px-4 py-3 text-left font-medium">
+                                  <button onClick={() => toggleSort("ppf")} className="flex items-center text-xs uppercase tracking-wide font-semibold hover:text-primary transition-colors">
+                                    PPF <SortIcon col="ppf" />
+                                  </button>
+                                </th>
+                                <th className="px-4 py-3 text-right font-medium">
+                                  <button onClick={() => toggleSort("stock")} className="flex items-center ml-auto text-xs uppercase tracking-wide font-semibold hover:text-primary transition-colors">
+                                    Remaining <SortIcon col="stock" />
+                                  </button>
+                                </th>
+                                <th className="px-4 py-3 text-center font-medium text-xs uppercase tracking-wide font-semibold">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                              {filtered.map((roll, i) => (
+                                <tr key={`${roll.ppfId}-${roll.id || i}`} className="hover:bg-muted/30 transition-colors">
+                                  <td className="px-4 py-3 font-medium">{roll.name}</td>
+                                  <td className="px-4 py-3">
+                                    <span className="inline-flex items-center gap-1.5 text-primary">
+                                      <Shield className="h-3.5 w-3.5" />
+                                      {roll.ppfName}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    <span className={`font-bold ${roll.stock === 0 ? "text-destructive" : "text-orange-600 dark:text-orange-400"}`}>
+                                      {roll.stock} <span className="text-xs font-normal text-muted-foreground">sqft</span>
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    {roll.stock === 0
+                                      ? <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">Empty</span>
+                                      : <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">Low Stock</span>
+                                    }
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
             <>

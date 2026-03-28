@@ -996,23 +996,62 @@ function RollHistoryView({ onBack }: { onBack: () => void }) {
 
   const historyRows: HistoryRow[] = [];
 
+  // Parse "Quantity: Xsqft (from RollName)" patterns from a name string
+  function parseRollsFromName(name: string): Array<{ rollName: string; rollUsed: number }> {
+    const regex = /Quantity:\s*([\d.]+)\s*sqft\s*\(from\s+([^)]+?)\s*\)/gi;
+    const results: Array<{ rollName: string; rollUsed: number }> = [];
+    let match;
+    while ((match = regex.exec(name)) !== null) {
+      results.push({ rollUsed: parseFloat(match[1]), rollName: match[2].trim() });
+    }
+    return results;
+  }
+
+  // Extract warranty from name like "PPF Name (VehicleType – WarrantyName)\n..."
+  function extractWarrantyFromName(name: string): string {
+    const firstLine = name?.split("\n")[0] || "";
+    const parenMatch = firstLine.match(/\(([^)]+)\)/);
+    if (!parenMatch) return "—";
+    const parts = parenMatch[1].split(/[–-]/);
+    return parts.length >= 2 ? parts.slice(1).join("–").trim() : "—";
+  }
+
+  // Extract base PPF name from "PPF Name (VehicleType – ...)" → "PPF Name"
+  function extractBaseName(name: string): string {
+    const firstLine = name?.split("\n")[0] || "";
+    const idx = firstLine.indexOf("(");
+    return idx > 0 ? firstLine.slice(0, idx).trim() : firstLine.trim();
+  }
+
   for (const jc of jobCards) {
     for (const ppf of jc.ppfs || []) {
       const vehicle = [jc.make, jc.model, jc.licensePlate].filter(Boolean).join(" · ");
-      const basePpfName = ppf.name?.split("\n")[0] || "";
+      const basePpfName = extractBaseName(ppf.name || "");
+      const warranty = (ppf as any).warranty || extractWarrantyFromName(ppf.name || "") || "—";
+      const technician = ppf.technician || "—";
 
-      const rollsUsed: Array<{ rollName: string; rollUsed: number }> =
-        (ppf as any).rollsUsed?.length > 0
-          ? (ppf as any).rollsUsed
-          : ppf.rollUsed
-          ? [{ rollName: (ppf as any).rollName || "—", rollUsed: ppf.rollUsed }]
-          : [];
+      // Try parsing rolls from the name string first (most reliable)
+      const parsedRolls = parseRollsFromName(ppf.name || "");
 
-      if (rollsUsed.length === 0 && ppf.rollUsed) {
-        rollsUsed.push({ rollName: (ppf as any).rollName || "—", rollUsed: ppf.rollUsed });
-      }
-
-      if (rollsUsed.length === 0) {
+      if (parsedRolls.length > 0) {
+        for (const r of parsedRolls) {
+          historyRows.push({
+            date: jc.date,
+            jobNo: jc.jobNo,
+            jobCardId: jc.id || "",
+            customerName: jc.customerName,
+            vehicle,
+            ppfName: basePpfName,
+            rollName: r.rollName,
+            sqftUsed: r.rollUsed,
+            price: ppf.price,
+            warranty,
+            technician,
+          });
+        }
+      } else {
+        // Fallback: use scalar rollUsed field
+        const rollUsed = (ppf as any).rollUsed || 0;
         historyRows.push({
           date: jc.date,
           jobNo: jc.jobNo,
@@ -1021,27 +1060,11 @@ function RollHistoryView({ onBack }: { onBack: () => void }) {
           vehicle,
           ppfName: basePpfName,
           rollName: "—",
-          sqftUsed: 0,
+          sqftUsed: rollUsed,
           price: ppf.price,
-          warranty: ppf.warranty || "—",
-          technician: ppf.technician || "—",
+          warranty,
+          technician,
         });
-      } else {
-        for (const r of rollsUsed) {
-          historyRows.push({
-            date: jc.date,
-            jobNo: jc.jobNo,
-            jobCardId: jc.id || "",
-            customerName: jc.customerName,
-            vehicle,
-            ppfName: basePpfName,
-            rollName: r.rollName || "—",
-            sqftUsed: r.rollUsed || 0,
-            price: ppf.price,
-            warranty: ppf.warranty || "—",
-            technician: ppf.technician || "—",
-          });
-        }
       }
     }
   }

@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Wrench, Shield, Package, Car, X, Edit2, LayoutGrid, ChevronDown, ChevronUp, Archive } from "lucide-react";
+import { Plus, Trash2, Wrench, Shield, Package, Car, X, Edit2, LayoutGrid, ChevronDown, ChevronUp, Archive, ArrowLeft } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@shared/routes";
@@ -25,9 +25,10 @@ import {
 import { Link, useLocation } from "wouter";
 
 export default function MastersPage() {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const searchParams = new URLSearchParams(location.split("?")[1]);
   const defaultTab = searchParams.get("tab") || "service";
+  const currentView = searchParams.get("view") || "";
   const [activeTab, setActiveTab] = useState(defaultTab);
 
   useEffect(() => {
@@ -48,7 +49,11 @@ export default function MastersPage() {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [accessorySearchQuery, setAccessorySearchQuery] = useState("");
   const [expandedRolls, setExpandedRolls] = useState<Set<string>>(new Set());
-  const [showUsedRolls, setShowUsedRolls] = useState(false);
+
+  const showUsedRolls = activeTab === "ppf" && currentView === "used-rolls";
+
+  const goToUsedRolls = () => navigate("/masters?tab=ppf&view=used-rolls");
+  const goBackToPPF = () => navigate("/masters?tab=ppf");
 
   const toggleRollExpand = (ppfId: string) => {
     setExpandedRolls(prev => {
@@ -147,7 +152,7 @@ export default function MastersPage() {
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setShowUsedRolls(false); }} className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); navigate(`/masters?tab=${v}`); }} className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-8">
             <TabsTrigger value="service" className="flex items-center gap-2">
               <Wrench className="h-4 w-4" />
@@ -263,8 +268,8 @@ export default function MastersPage() {
             {showUsedRolls ? (
               <div className="space-y-6">
                 <div className="flex items-center gap-3">
-                  <Button variant="outline" size="sm" onClick={() => setShowUsedRolls(false)} className="flex items-center gap-2">
-                    <X className="h-4 w-4" />
+                  <Button variant="outline" size="sm" onClick={goBackToPPF} className="flex items-center gap-2">
+                    <ArrowLeft className="h-4 w-4" />
                     Back to PPF Master
                   </Button>
                   <div>
@@ -312,7 +317,7 @@ export default function MastersPage() {
             ) : (
             <>
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowUsedRolls(true)} className="flex items-center gap-2">
+              <Button variant="outline" onClick={goToUsedRolls} className="flex items-center gap-2">
                 <Archive className="h-4 w-4" />
                 Used Rolls
               </Button>

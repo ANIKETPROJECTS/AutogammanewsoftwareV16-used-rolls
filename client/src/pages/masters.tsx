@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Wrench, Shield, Package, Car, X, Edit2, LayoutGrid, ChevronDown, ChevronUp, Archive, ArrowLeft, History } from "lucide-react";
+import { Plus, Trash2, Wrench, Shield, Package, Car, X, Edit2, LayoutGrid, ChevronDown, ChevronUp, Archive, ArrowLeft, History, ArrowUpDown, ArrowUp, ArrowDown, Filter, RotateCcw } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@shared/routes";
@@ -979,6 +979,33 @@ function RollHistoryView({ onBack }: { onBack: () => void }) {
   });
 
   const [search, setSearch] = useState("");
+  const [filterPPF, setFilterPPF] = useState("all");
+  const [filterRoll, setFilterRoll] = useState("all");
+  const [filterWarranty, setFilterWarranty] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [sortKey, setSortKey] = useState<string>("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  function handleSort(key: string) {
+    if (sortKey === key) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  }
+
+  function resetFilters() {
+    setSearch("");
+    setFilterPPF("all");
+    setFilterRoll("all");
+    setFilterWarranty("all");
+    setDateFrom("");
+    setDateTo("");
+    setSortKey("date");
+    setSortDir("desc");
+  }
 
   type HistoryRow = {
     date: string;
@@ -1069,22 +1096,64 @@ function RollHistoryView({ onBack }: { onBack: () => void }) {
     }
   }
 
-  historyRows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // Build unique filter options from raw data
+  const allPPFNames = Array.from(new Set(historyRows.map(r => r.ppfName).filter(n => n && n !== "—"))).sort();
+  const allRollNames = Array.from(new Set(historyRows.map(r => r.rollName).filter(n => n && n !== "—"))).sort();
+  const allWarranties = Array.from(new Set(historyRows.map(r => r.warranty).filter(n => n && n !== "—"))).sort();
 
-  const filtered = historyRows.filter(r => {
-    const q = search.toLowerCase();
+  const activeFilters = [filterPPF, filterRoll, filterWarranty].filter(f => f !== "all").length
+    + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) + (search ? 1 : 0);
+
+  const filtered = historyRows
+    .filter(r => {
+      const q = search.toLowerCase();
+      if (q && !r.jobNo.toLowerCase().includes(q) && !r.customerName.toLowerCase().includes(q)
+        && !r.ppfName.toLowerCase().includes(q) && !r.rollName.toLowerCase().includes(q)
+        && !r.vehicle.toLowerCase().includes(q)) return false;
+      if (filterPPF !== "all" && r.ppfName !== filterPPF) return false;
+      if (filterRoll !== "all" && r.rollName !== filterRoll) return false;
+      if (filterWarranty !== "all" && r.warranty !== filterWarranty) return false;
+      if (dateFrom && r.date < dateFrom) return false;
+      if (dateTo && r.date > dateTo) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "date") cmp = new Date(a.date).getTime() - new Date(b.date).getTime();
+      else if (sortKey === "jobNo") cmp = a.jobNo.localeCompare(b.jobNo);
+      else if (sortKey === "customer") cmp = a.customerName.localeCompare(b.customerName);
+      else if (sortKey === "ppf") cmp = a.ppfName.localeCompare(b.ppfName);
+      else if (sortKey === "roll") cmp = a.rollName.localeCompare(b.rollName);
+      else if (sortKey === "sqft") cmp = a.sqftUsed - b.sqftUsed;
+      else if (sortKey === "amount") cmp = a.price - b.price;
+      else if (sortKey === "warranty") cmp = a.warranty.localeCompare(b.warranty);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+  const totalSqft = filtered.reduce((s, r) => s + r.sqftUsed, 0);
+  const totalAmount = filtered.reduce((s, r) => s + r.price, 0);
+
+  function SortIcon({ col }: { col: string }) {
+    if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40 inline" />;
+    return sortDir === "asc"
+      ? <ArrowUp className="h-3 w-3 ml-1 text-primary inline" />
+      : <ArrowDown className="h-3 w-3 ml-1 text-primary inline" />;
+  }
+
+  function SortTh({ col, children, right }: { col: string; children: React.ReactNode; right?: boolean }) {
     return (
-      !q ||
-      r.jobNo.toLowerCase().includes(q) ||
-      r.customerName.toLowerCase().includes(q) ||
-      r.ppfName.toLowerCase().includes(q) ||
-      r.rollName.toLowerCase().includes(q) ||
-      r.vehicle.toLowerCase().includes(q)
+      <th
+        className={`px-4 py-3 font-semibold text-xs uppercase tracking-wide text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap ${right ? "text-right" : "text-left"}`}
+        onClick={() => handleSort(col)}
+      >
+        {children}<SortIcon col={col} />
+      </th>
     );
-  });
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="outline" size="sm" onClick={onBack} className="flex items-center gap-2">
           <ArrowLeft className="h-4 w-4" />
@@ -1096,15 +1165,84 @@ function RollHistoryView({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <Input
-          placeholder="Search by job no, customer, PPF name, roll..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
-        />
-        <span className="text-sm text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
+      {/* Search + Filters */}
+      <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-sm">
+            <Input
+              placeholder="Search job no, customer, PPF, roll..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <Select value={filterPPF} onValueChange={setFilterPPF}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="All PPFs" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All PPFs</SelectItem>
+              {allPPFNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterRoll} onValueChange={setFilterRoll}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="All Rolls" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Rolls</SelectItem>
+              {allRollNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterWarranty} onValueChange={setFilterWarranty}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="All Warranties" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Warranties</SelectItem>
+              {allWarranties.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          {activeFilters > 0 && (
+            <Button variant="ghost" size="sm" onClick={resetFilters} className="flex items-center gap-1 text-muted-foreground hover:text-foreground">
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset
+            </Button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
+            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-8 w-[150px] text-sm" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground whitespace-nowrap">To</Label>
+            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-8 w-[150px] text-sm" />
+          </div>
+          <span className="text-sm text-muted-foreground ml-auto">
+            {filtered.length} record{filtered.length !== 1 ? "s" : ""}
+            {activeFilters > 0 && <span className="ml-1 text-xs text-primary">({activeFilters} filter{activeFilters !== 1 ? "s" : ""} active)</span>}
+          </span>
+        </div>
       </div>
+
+      {/* Summary bar */}
+      {filtered.length > 0 && (
+        <div className="flex gap-4 flex-wrap">
+          <div className="border rounded-lg px-4 py-3 bg-muted/30 flex flex-col">
+            <span className="text-xs text-muted-foreground uppercase tracking-wide">Total Sqft Used</span>
+            <span className="text-lg font-bold">{totalSqft.toLocaleString("en-IN")} <span className="text-sm font-normal text-muted-foreground">sqft</span></span>
+          </div>
+          <div className="border rounded-lg px-4 py-3 bg-muted/30 flex flex-col">
+            <span className="text-xs text-muted-foreground uppercase tracking-wide">Total Amount</span>
+            <span className="text-lg font-bold text-primary">₹{totalAmount.toLocaleString("en-IN")}</span>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-3">
@@ -1115,8 +1253,12 @@ function RollHistoryView({ onBack }: { onBack: () => void }) {
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
           <History className="h-12 w-12 mb-4 opacity-30" />
-          <p className="text-base font-medium">No roll usage history yet</p>
-          <p className="text-sm mt-1">PPF roll usage from job cards will appear here.</p>
+          <p className="text-base font-medium">{historyRows.length === 0 ? "No roll usage history yet" : "No records match your filters"}</p>
+          <p className="text-sm mt-1">
+            {historyRows.length === 0
+              ? "PPF roll usage from job cards will appear here."
+              : <button className="underline text-primary" onClick={resetFilters}>Clear all filters</button>}
+          </p>
         </div>
       ) : (
         <div className="border rounded-lg overflow-hidden">
@@ -1124,15 +1266,15 @@ function RollHistoryView({ onBack }: { onBack: () => void }) {
             <table className="w-full text-sm">
               <thead className="bg-muted/60 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">Date</th>
-                  <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">Job No</th>
-                  <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">Customer</th>
+                  <SortTh col="date">Date</SortTh>
+                  <SortTh col="jobNo">Job No</SortTh>
+                  <SortTh col="customer">Customer</SortTh>
                   <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">Vehicle</th>
-                  <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">PPF</th>
-                  <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">Roll</th>
-                  <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-muted-foreground">Sqft Used</th>
-                  <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-muted-foreground">Amount</th>
-                  <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">Warranty</th>
+                  <SortTh col="ppf">PPF</SortTh>
+                  <SortTh col="roll">Roll</SortTh>
+                  <SortTh col="sqft" right>Sqft Used</SortTh>
+                  <SortTh col="amount" right>Amount</SortTh>
+                  <SortTh col="warranty">Warranty</SortTh>
                   <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-muted-foreground">Technician</th>
                 </tr>
               </thead>

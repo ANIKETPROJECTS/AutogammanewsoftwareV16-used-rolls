@@ -25,19 +25,18 @@ import {
 import { Link, useLocation } from "wouter";
 
 export default function MastersPage() {
-  const [location, navigate] = useLocation();
-  const searchParams = new URLSearchParams(window.location.search);
+  const [location] = useLocation();
+  const searchParams = new URLSearchParams(location.split("?")[1]);
   const defaultTab = searchParams.get("tab") || "service";
-  const currentView = searchParams.get("view") || "";
   const [activeTab, setActiveTab] = useState(defaultTab);
+  const [showUsedRolls, setShowUsedRolls] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get("tab") || "service";
-    if (tab !== activeTab) {
-      setActiveTab(tab);
+    if (defaultTab !== activeTab) {
+      setActiveTab(defaultTab);
     }
-  }, [location]);
+  }, [defaultTab]);
+
   const { toast } = useToast();
   const [isAddServiceOpen, setIsAddServiceOpen] = useState(false);
   const [editingService, setEditingService] = useState<ServiceMaster | null>(null);
@@ -52,10 +51,8 @@ export default function MastersPage() {
   const [accessorySearchQuery, setAccessorySearchQuery] = useState("");
   const [expandedRolls, setExpandedRolls] = useState<Set<string>>(new Set());
 
-  const showUsedRolls = activeTab === "ppf" && currentView === "used-rolls";
-
-  const goToUsedRolls = () => navigate("/masters?tab=ppf&view=used-rolls");
-  const goBackToPPF = () => navigate("/masters?tab=ppf");
+  const goToUsedRolls = () => setShowUsedRolls(true);
+  const goBackToPPF = () => setShowUsedRolls(false);
 
   const toggleRollExpand = (ppfId: string) => {
     setExpandedRolls(prev => {
@@ -154,7 +151,7 @@ export default function MastersPage() {
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); navigate(`/masters?tab=${v}`); }} className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setShowUsedRolls(false); }} className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-8">
             <TabsTrigger value="service" className="flex items-center gap-2">
               <Wrench className="h-4 w-4" />

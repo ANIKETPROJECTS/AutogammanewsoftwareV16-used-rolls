@@ -1130,9 +1130,6 @@ function RollHistoryView({ onBack }: { onBack: () => void }) {
       return sortDir === "asc" ? cmp : -cmp;
     });
 
-  const totalSqft = filtered.reduce((s, r) => s + r.sqftUsed, 0);
-  const totalAmount = filtered.reduce((s, r) => s + r.price, 0);
-
   function SortIcon({ col }: { col: string }) {
     if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40 inline" />;
     return sortDir === "asc"
@@ -1229,20 +1226,6 @@ function RollHistoryView({ onBack }: { onBack: () => void }) {
           </span>
         </div>
       </div>
-
-      {/* Summary bar */}
-      {filtered.length > 0 && (
-        <div className="flex gap-4 flex-wrap">
-          <div className="border rounded-lg px-4 py-3 bg-muted/30 flex flex-col">
-            <span className="text-xs text-muted-foreground uppercase tracking-wide">Total Sqft Used</span>
-            <span className="text-lg font-bold">{totalSqft.toLocaleString("en-IN")} <span className="text-sm font-normal text-muted-foreground">sqft</span></span>
-          </div>
-          <div className="border rounded-lg px-4 py-3 bg-muted/30 flex flex-col">
-            <span className="text-xs text-muted-foreground uppercase tracking-wide">Total Amount</span>
-            <span className="text-lg font-bold text-primary">₹{totalAmount.toLocaleString("en-IN")}</span>
-          </div>
-        </div>
-      )}
 
       {isLoading ? (
         <div className="space-y-3">

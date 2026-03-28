@@ -1542,7 +1542,10 @@ export default function AddJobPage() {
                     <label className="text-xs font-bold text-muted-foreground uppercase">Available Stock (sqft)</label>
                     <div className="h-11 flex items-center px-3 border rounded-md bg-slate-50 font-medium text-slate-700">
                       {selectedPPF ? (() => {
-                        const totalStock = currentPPF?.rolls?.reduce((acc: number, r: any) => acc + (r.stock || 0), 0) || 0;
+                        // Only count rolls with stock > 10, and subtract 10 sqft buffer from each
+                        const totalStock = currentPPF?.rolls
+                          ?.filter((r: any) => (r.stock || 0) > 10)
+                          .reduce((acc: number, r: any) => acc + Math.max(0, (r.stock || 0) - 10), 0) || 0;
                         const usedInCurrentJob = ppfFields.reduce((acc, field: any) => {
                           const isSamePPF = field.ppfId === selectedPPF;
                           if (!isSamePPF) return acc;

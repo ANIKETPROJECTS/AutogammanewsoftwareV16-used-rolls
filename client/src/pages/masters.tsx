@@ -48,7 +48,6 @@ export default function MastersPage() {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [accessorySearchQuery, setAccessorySearchQuery] = useState("");
   const [expandedRolls, setExpandedRolls] = useState<Set<string>>(new Set());
-  const [isUsedRollsOpen, setIsUsedRollsOpen] = useState(false);
 
   const toggleRollExpand = (ppfId: string) => {
     setExpandedRolls(prev => {
@@ -148,7 +147,7 @@ export default function MastersPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8">
+          <TabsList className="grid w-full grid-cols-4 mb-8">
             <TabsTrigger value="service" className="flex items-center gap-2">
               <Wrench className="h-4 w-4" />
               Service Master
@@ -156,6 +155,10 @@ export default function MastersPage() {
             <TabsTrigger value="ppf" className="flex items-center gap-2">
               <Shield className="h-4 w-4" />
               PPF Master
+            </TabsTrigger>
+            <TabsTrigger value="used-rolls" className="flex items-center gap-2">
+              <Archive className="h-4 w-4" />
+              Used Rolls
             </TabsTrigger>
             <TabsTrigger value="accessories" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
@@ -292,43 +295,6 @@ export default function MastersPage() {
                 </DialogContent>
               </Dialog>
 
-              <Dialog open={isUsedRollsOpen} onOpenChange={setIsUsedRollsOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" className="flex items-center gap-2" data-testid="button-used-rolls">
-                    <Archive className="h-4 w-4" />
-                    Used Rolls
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Used Rolls (≤ 10 sqft)</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 py-2">
-                    {ppfs.every(p => !(p.rolls || []).some(r => r.stock <= 10)) ? (
-                      <p className="text-sm text-muted-foreground text-center py-6">No used rolls yet. Rolls with 10 sqft or less will appear here.</p>
-                    ) : (
-                      ppfs.map(ppf => {
-                        const usedRolls = (ppf.rolls || []).filter(r => r.stock <= 10);
-                        if (usedRolls.length === 0) return null;
-                        return (
-                          <div key={ppf.id}>
-                            <div className="text-xs font-bold uppercase text-primary mb-2">{ppf.name}</div>
-                            <div className="space-y-1">
-                              {usedRolls.map((roll, i) => (
-                                <div key={i} className="flex justify-between items-center text-xs bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 p-2 px-3 rounded-md">
-                                  <span className="font-semibold">{roll.name || `Roll #${i+1}`}</span>
-                                  <span className={`font-bold ${roll.stock === 0 ? "text-destructive" : "text-orange-600 dark:text-orange-400"}`}>{roll.stock} sqft</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
-
               <Dialog open={isAddPPFOpen} onOpenChange={setIsAddPPFOpen}>
                 <DialogTrigger asChild>
                   <Button className="flex items-center gap-2">
@@ -422,6 +388,49 @@ export default function MastersPage() {
                 )}
               </DialogContent>
             </Dialog>
+          </TabsContent>
+
+          <TabsContent value="used-rolls" className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold mb-1">Used Rolls</h2>
+              <p className="text-sm text-muted-foreground mb-6">Rolls with 10 sqft or less remaining. These rolls are considered depleted and cannot be used for new jobs.</p>
+              {ppfs.every(p => !(p.rolls || []).some(r => r.stock <= 10)) ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
+                  <Archive className="h-12 w-12 mb-4 opacity-30" />
+                  <p className="text-base font-medium">No used rolls yet</p>
+                  <p className="text-sm mt-1">Rolls with 10 sqft or less will automatically appear here.</p>
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {ppfs.map(ppf => {
+                    const usedRolls = (ppf.rolls || []).filter(r => r.stock <= 10);
+                    if (usedRolls.length === 0) return null;
+                    return (
+                      <div key={ppf.id}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <Shield className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-bold uppercase text-primary">{ppf.name}</span>
+                          <span className="text-xs text-muted-foreground">({usedRolls.length} roll{usedRolls.length !== 1 ? "s" : ""})</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                          {usedRolls.map((roll, i) => (
+                            <div key={i} className="flex items-center justify-between bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg px-4 py-3">
+                              <div>
+                                <div className="text-sm font-semibold">{roll.name || `Roll #${i + 1}`}</div>
+                                <div className="text-xs text-muted-foreground mt-0.5">Remaining stock</div>
+                              </div>
+                              <div className={`text-lg font-bold ${roll.stock === 0 ? "text-destructive" : "text-orange-600 dark:text-orange-400"}`}>
+                                {roll.stock} <span className="text-xs font-normal">sqft</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="accessories" className="space-y-6">

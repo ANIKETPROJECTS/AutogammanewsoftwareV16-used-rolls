@@ -983,7 +983,8 @@ export default function AddJobPage() {
       return acc;
     }, 0);
     
-    return (Number(roll.stock) || 0) - usedInCurrentJob;
+    const usableStock = Math.max(0, (Number(roll.stock) || 0) - 10);
+    return usableStock - usedInCurrentJob;
   })();
   const { data: vehicleTypes = [] } = useQuery<any[]>({
     queryKey: [api.masters.vehicleTypes.list.path],
@@ -1495,19 +1496,19 @@ export default function AddJobPage() {
                         <SelectValue placeholder="Select Roll" />
                       </SelectTrigger>
                       <SelectContent>
-                        {currentPPF?.rolls?.map((roll: any) => (
+                        {currentPPF?.rolls?.filter((roll: any) => (roll.stock || 0) > 10).map((roll: any) => (
                           <SelectItem key={roll._id || roll.id} value={(roll._id || roll.id)!}>
                             {roll.name} ({(() => {
                               const used = form.watch("ppfs")
-                                .filter((p: any) => p.ppfId === selectedPPF) // Filter by PPF first
+                                .filter((p: any) => p.ppfId === selectedPPF)
                                 .reduce((sum: number, p: any) => {
-                                  // Extract roll quantity from description for this specific roll
                                   const rollNameEscaped = roll.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                                   const regex = new RegExp(`Quantity: (\\d+(?:\\.\\d+)?)sqft \\(from ${rollNameEscaped}\\)`);
                                   const match = p.name.match(regex);
                                   return sum + (match ? parseFloat(match[1]) : 0);
                                 }, 0);
-                              return (roll.stock || 0) - used;
+                              const usable = Math.max(0, (roll.stock || 0) - 10);
+                              return usable - used;
                             })()} sqft)
                           </SelectItem>
                         ))}
